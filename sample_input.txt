@@ -1,0 +1,705 @@
+CS447: Natural Language Processing
+http://courses.engr.illinois.edu/cs447
+Julia Hockenmaier
+juliahmr@illinois.edu
+3324 Siebel Center
+Lecture 3:
+Language models
+CS447: Natural Language Processing (J. Hockenmaier)
+Last lecture’s key concepts
+Morphology (word structure): stems, affixes
+Derivational vs. inflectional morphology
+Compounding
+Stem changes
+Morphological analysis and generation
+Finite-state automata
+Finite-state transducers
+Composing finite-state transducers
+2
+CS447: Natural Language Processing (J. Hockenmaier)
+Finite-state transducers
+-FSTs define a relation between two regular
+languages.
+-Each state transition maps (transduces) a character
+from the input language to a character (or a
+sequence of characters) in the output language
+-By using the empty character (ε), characters can
+be deleted (x:ε) or inserted(ε:y)
+-FSTs can be composed (cascaded), allowing us to
+define intermediate representations. 3
+x:y
+x:ε ε:y
+CS447: Natural Language Processing (J. Hockenmaier)
+Today’s lecture
+How can we distinguish word salad, spelling errors
+and grammatical sentences?
+Language models define probability distributions
+over the strings in a language.
+N-gram models are the simplest and most common
+kind of language model.
+We’ll look at how they’re defined, how to estimate
+(learn) them, and what their shortcomings are.
+We’ll also review some very basic probability theory.
+4
+CS447: Natural Language Processing (J. Hockenmaier)
+Why do we need language models?
+Many NLP tasks return output in natural language:
+-Machine translation
+-Speech recognition
+-Natural language generation
+-Spell-checking
+Language models define probability distributions
+over (natural language) strings or sentences.
+We can use them to score/rank possible sentences:
+If PLM(A) > PLM(B), choose sentence A over B
+5
+CS447: Natural Language Processing (J. Hockenmaier)
+Reminder:
+Basic Probability
+Theory
+6
+CS447: Natural Language Processing (J. Hockenmaier) 7
+P( ) = 2/15
+P(blue) = 5/15
+P(blue | ) = 2/5
+P( ) = 1/15
+P(red) = 5/15
+P( ) = 5/15
+P( or ) = 2/15
+P( |red) = 3/5
+Pick a random shape, then put it back in the bag.
+Sampling with replacement
+CS447: Natural Language Processing (J. Hockenmaier) 8
+Pick a random shape, then put it back in the bag.
+What sequence of shapes will you draw?
+P( )
+P( )
+= 1/15 × 1/15 × 1/15 × 2/15
+= 2/50625
+= 3/15 × 2/15 × 2/15 × 3/15
+= 36/50625
+P( ) = 2/15
+P(blue) = 5/15
+P(blue | ) = 2/5
+P( ) = 1/15
+P(red) = 5/15
+P( ) = 5/15
+P( or ) = 2/15
+P( |red) = 3/5
+Sampling with replacement
+CS447: Natural Language Processing (J. Hockenmaier)
+Alice was beginning to get very tired of
+sitting by her sister on the bank, and of
+having nothing to do: once or twice she
+had peeped into the book her sister was
+reading, but it had no pictures or
+conversations in it, 'and what is the use
+of a book,' thought Alice 'without
+pictures or conversation?'
+Alice was beginning to get very tired of
+sitting by her sister on the bank, and of
+having nothing to do: once or twice she
+had peeped into the book her sister was
+reading, but it had no pictures or
+conversations in it,
+'and what is the use
+of a book,
+' thought Alice 'without
+pictures or conversation?'
+9
+P(of) = 3/66
+P(Alice) = 2/66
+P(was) = 2/66
+P(to) = 2/66
+P(her) = 2/66
+P(sister) = 2/66
+P(,) = 4/66
+P(') = 4/66
+Sampling with replacement
+CS447: Natural Language Processing (J. Hockenmaier)
+P(of) = 3/66
+P(Alice) = 2/66
+P(was) = 2/66
+P(to) = 2/66
+P(her) = 2/66
+P(sister) = 2/66
+P(,) = 4/66
+P(') = 4/66
+beginning by, very Alice but was and?
+reading no tired of to into sitting
+sister the, bank, and thought of without
+her nothing: having conversations Alice
+once do or on she it get the book her had
+peeped was conversation it pictures or
+sister in,
+'what is the use had twice of
+a book''pictures or' to
+10
+In this model, P(English sentence) = P(word salad)
+Sampling with replacement
+CS447: Natural Language Processing (J. Hockenmaier)
+Probability theory: terminology
+Trial:
+Picking a shape, predicting a word
+Sample space Ω:
+The set of all possible outcomes
+(all shapes; all words in Alice in Wonderland)
+Event ω ⊆ Ω:
+An actual outcome (a subset of Ω)
+(predicting ‘the’, picking a triangle)
+11
+CS447: Natural Language Processing (J. Hockenmaier)
+Kolmogorov axioms:
+1) Each event has a probability between 0 and 1.
+2) The null event has probability 0.
+ The probability that any event happens is 1.
+3) The probability of all disjoint events sums to 1.
+The probability of events
+12
+0 ⇥ P(  ) ⇥ 1
+P(⇤) = 0 and P()=1
+
+i
+P(i)=1 if ⇥j = i : i ⌅ j = ⇤
+and
+i i = 
+CS447: Natural Language Processing (J. Hockenmaier)
+Bernoulli distribution (two possible outcomes)
+The probability of success (=head,yes)
+The probability of head is p.
+The probability of tail is 1−p.
+Categorical distribution (N possible outcomes)
+The probability of category/outcome ci is pi
+(0≤ pi ≤1 ∑i pi = 1)
+Discrete probability distributions:
+single trials
+13
+CS447: Natural Language Processing (J. Hockenmaier)
+The conditional probability of X given Y, P(X | Y),
+is defined in terms of the probability of Y, P( Y ),
+and the joint probability of X and Y, P(X,Y):
+Joint and Conditional Probability
+P(X|Y ) = P(X, Y )
+P(Y )
+P(blue | ) = 2/5
+14
+CS447: Natural Language Processing (J. Hockenmaier) 15
+Alice was beginning to get very tired of
+sitting by her sister on the bank, and of
+having nothing to do: once or twice she
+had peeped into the book her sister was
+reading, but it had no pictures or
+conversations in it,
+'and what is the use
+of a book,
+' thought Alice 'without
+pictures or conversation?'
+P(wi+1 = of | wi = tired) = 1
+P(wi+1 = of | wi = use) = 1
+P(wi+1 = sister | wi = her) = 1
+P(wi+1 = beginning | wi = was) = 1/2
+P(wi+1 = reading | wi = was) = 1/2
+P(wi+1 = bank | wi = the) = 1/3
+P(wi+1 = book | wi = the) = 1/3
+P(wi+1 = use | wi = the) = 1/3
+Conditioning on the previous word
+CS447: Natural Language Processing (J. Hockenmaier) 16
+English
+Alice was beginning to get very
+tired of sitting by her sister on
+the bank, and of having nothing to
+do: once or twice she had peeped
+into the book her sister was
+reading, but it had no pictures or
+conversations in it, 'and what is
+the use of a book,' thought Alice
+'without pictures or conversation?'
+Word Salad
+beginning by, very Alice but was and?
+reading no tired of to into sitting
+sister the, bank, and thought of without
+her nothing: having conversations Alice
+once do or on she it get the book her had
+peeped was conversation it pictures or
+sister in, 'what is the use had twice of
+a book''pictures or' to
+Now, P(English) ⪢ P(word salad)
+P(wi+1 = of | wi = tired) = 1
+P(wi+1 = of | wi = use) = 1
+P(wi+1 = sister | wi = her) = 1
+P(wi+1 = beginning | wi = was) = 1/2
+P(wi+1 = reading | wi = was) = 1/2
+P(wi+1 = bank | wi = the) = 1/3
+P(wi+1 = book | wi = the) = 1/3
+P(wi+1 = use | wi = the) = 1/3
+Conditioning on the previous word
+CS447: Natural Language Processing (J. Hockenmaier)
+The chain rule
+The joint probability P(X,Y) can also be expressed in
+terms of the conditional probability P(X | Y)
+This leads to the so-called chain rule:
+17
+P(X, Y ) = P(X|Y )P(Y )
+P(X1, X2,...,Xn) = P(X1)P(X2|X1)P(X3|X2, X1)....P(Xn|X1, ...Xn1)
+= P(X1)
+
+n
+i=2
+P(Xi|X1 ...Xi1)
+CS447: Natural Language Processing (J. Hockenmaier)
+Two random variables X and Y are independent if
+If X and Y are independent, then P(X | Y) = P(X):
+Independence
+P(X, Y ) = P(X)P(Y )
+P(X|Y ) = P(X, Y )
+P(Y )
+=
+P(X)P(Y )
+P(Y ) (X , Y independent)
+= P(X)
+18
+CS447: Natural Language Processing (J. Hockenmaier)
+Probability models
+Building a probability model consists of two steps:
+1. Defining the model
+2. Estimating the model’s parameters
+ (= training/learning )
+Models (almost) always make
+independence assumptions.
+That is, even though X and Y are not actually independent,
+our model may treat them as independent.
+This reduces the number of model parameters that
+we need to estimate (e.g. from n2 to 2n)
+19
+CS447: Natural Language Processing (J. Hockenmaier)
+Language modeling
+with n-grams
+20
+CS447: Natural Language Processing (J. Hockenmaier)
+A language model over a vocabulary V assigns
+probabilities to strings drawn from V*.
+Recall the chain rule:
+An n-gram language model assumes each word depends
+only on the last n−1 words:
+Language modeling with N-grams
+P(w1...wi) = P(w1)P(w2|w1)P(w3|w1w2)...P(wi|w1...wi1)
+Pngram(w1...wi) := P(w1)P(w2|w1)...P( wi
+⇤⇥⌅
+nth word
+| win1...wi1
+⇤ ⇥ ⌅
+prev. n1 words
+)
+21
+CS447: Natural Language Processing (J. Hockenmaier)
+N-gram models
+Unigram model P(w1)P(w2)...P(wi)
+Bigram model P(w1)P(w2|w1)...P(wi|wi1)
+Trigram model P(w1)P(w2|w1)...P(wi|wi2wi1)
+N-gram model P(w1)P(w2|w1)...P(wi|win1...wi1)
+N-gram models assume each word (event) depends
+only on the previous n−1 words (events).
+Such independence assumptions are called
+Markov assumptions (of order n−1).
+22
+P(wi|w1...wi1) :⇡ P(wi|win1...wi1)
+CS447: Natural Language Processing (J. Hockenmaier)
+1. Bracket each sentence by special start and end symbols:
+<s> Alice was beginning to get very tired… </s>
+(We only assign probabilities to strings <s>...</s>)
+2. Count the frequency of each n-gram….
+ C(<s> Alice) = 1, C(Alice was) = 1,….
+3. .... and normalize these frequencies to get the probability:
+This is called a relative frequency estimate of P(wn | wn−1)
+Estimating N-gram models
+23
+P(wn|wn1) = C(wn1wn)
+C(wn1)
+CS447: Natural Language Processing (J. Hockenmaier)
+Start and End symbols <s>… <\s>
+Why do we need a start-of-sentence symbol?
+This is just a mathematical convenience, since it allows us to
+write e.g. P(w1 | <s>) for the probability of the first word in
+analogy to P(wi+1 | wi ) for any other word.
+Why do we need an end-of-sentence symbol?
+This is necessary if we want to compare the probability of
+strings of different lengths (and actually define a probability
+distribution over V*).
+We include <\s> in the vocabulary V, require that each string
+ends in <\s> and that <\s> can only appear at the end of
+sentences, and estimate P(wi+1 = <\s> | wi ).
+24
+CS447: Natural Language Processing (J. Hockenmaier)
+Parameter estimation (training)
+Parameters: the actual probabilities
+ P(wi = ‘the’ | wi-1 = ‘on’) = ???
+We need (a large amount of) text as training data
+to estimate the parameters of a language model.
+The most basic estimation technique:
+relative frequency estimation (= counts)
+ P(wi = ‘the’ | wi-1 = ‘on’) = C(‘on the’) / C(‘on’)
+Also called Maximum Likelihood Estimation (MLE)
+MLE assigns all probability mass to events that occur
+in the training corpus.
+25
+CS447: Natural Language Processing (J. Hockenmaier)
+How do we use language models?
+Independently of any application, we can use a
+language model as a random sentence generator
+(i.e we sample sentences according to their language model
+probability)
+Systems for applications such as machine translation,
+speech recognition, spell-checking, generation, often
+produce multiple candidate sentences as output.
+-We prefer output sentences SOut that have a higher probability
+-We can use a language model P(SOut) to score and rank these
+different candidate output sentences, e.g. as follows:
+ argmaxSOut P(SOut | Input) = argmaxSOut P(Input | SOut)P(SOut)
+26
+CS447: Natural Language Processing (J. Hockenmaier)
+Using n-gram models
+to generate language
+27
+CS447: Natural Language Processing (J. Hockenmaier)
+Generating from a distribution
+28
+How do you generate text from an n-gram model?
+That is, how do you sample from a distribution P(X |Y=y)?
+-Assume X has N possible outcomes (values): {x1, …, xN}
+and P(X=xi | Y=y) = pi
+-Divide the interval [0,1] into N smaller intervals according to
+the probabilities of the outcomes
+-Generate a random number r between 0 and 1.
+-Return the x1 whose interval the number is in.
+x1 x2 x3 x4 x5
+ 0 p1 p1+p2 p1+p2+p3 p1+p2+p3+p4 1
+r
+CS447: Natural Language Processing (J. Hockenmaier)
+Generating the Wall Street Journal
+29
+CS447: Natural Language Processing (J. Hockenmaier)
+Generating Shakespeare
+30
+CS447: Natural Language Processing (J. Hockenmaier)
+Intrinsic vs Extrinsic Evaluation
+How do we know whether one language model
+is better than another?
+There are two ways to evaluate models:
+-intrinsic evaluation captures how well the model captures
+what it is supposed to capture (e.g. probabilities)
+-extrinsic (task-based) evaluation captures how useful the
+model is in a particular task.
+Both cases require an evaluation metric that allows us
+to measure and compare the performance of different
+models.
+31
+CS447: Natural Language Processing (J. Hockenmaier)
+How do we evaluate models?
+Define an evaluation metric (scoring function).
+We will want to measure how similar the predictions
+of the model are to real text.
+Train the model on a ‘seen’ training set
+Perhaps: tune some parameters based on held-out data
+(disjoint from the training data, meant to emulate unseen data)
+Test the model on an unseen test set
+(usually from the same source (e.g. WSJ) as the training data)
+Test data must be disjoint from training and held-out data
+Compare models by their scores (more on this next week).
+32
+CS447: Natural Language Processing (J. Hockenmaier)
+Intrinsic Evaluation
+of Language Models:
+Perplexity
+33
+CS447: Natural Language Processing (J. Hockenmaier)
+Perplexity
+Perplexity is the inverse of the probability of the test
+set (as assigned by the language model), normalized
+by the number of word tokens in the test set.
+Minimizing perplexity = maximizing probability!
+Language model LM1 is better than LM2
+if LM1 assigns lower perplexity (= higher probability)
+to the test corpus w1…wN
+NB: the perplexity of LM1 and LM2 can only be directly
+compared if both models use the same vocabulary.
+34
+CS447: Natural Language Processing (J. Hockenmaier)
+The inverse of the probability of the test set,
+normalized by the number of tokens in the test set.
+Assume the test corpus has N tokens, w1…wN
+If the LM assigns probability P(w1, …, wi−n) to the test
+corpus, its perplexity, PP(w1…wN), is defined as:
+A LM with lower perplexity is better because it assigns
+a higher probability to the unseen test corpus.
+Perplexity
+35
+P P(w1...wN ) = P(w1...wN )
+ 1
+N
+=
+N
+⇥
+1
+P(w1...wN )
+=
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi|w1...wi1)
+=defN
+⇧⌅⌅⇤
+N
+1
+(|)P P(w1...wN ) = P(w1...wN )
+ 1
+N
+=
+N
+⇥
+1
+P(w1...wN )
+=
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi|w1...wi1)
+=def
+N
+⇧⌅⌅⇤
+N
+1
+P(w|ww)
+CS447: Natural Language Processing (J. Hockenmaier)
+Given a test corpus with N tokens, w1…wN,
+and an n-gram model P(wi | wi−1, …, wi−n+1)
+we compute its perplexity PP(w1…wN) as follows:
+Perplexity PP(w1…wn)
+(Chain rule)
+(N-gram
+model)
+36
+P P(w1...wN ) = P(w1...wN )
+ 1
+N
+=
+N
+⇥
+1
+P(w1...wN )
+=
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi|w1...wi1)
+=def
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi|win...wi1)
+P P(w1...wN ) = P(w1...wN )
+ 1
+N
+=
+N
+⇥
+1
+P(w1...wN )
+=
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi|w1...wi1)
+=def
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi|win...wi1)
+P P(w1...wN ) = P(w1...wN )
+ 1
+N
+=
+N
+⇥
+1
+P(w1...wN )
+=
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi|w1...wi1)
+=def
+N
+⇧⌅⌅⇤
+N
+i=1
+1
+P(wi
+= |win...wi1) def N
+s N
+’
+i=1
+1
+P(wi|wi1,...,win+1)
+CS447: Natural Language Processing (J. Hockenmaier)
+Practical issues
+Since language model probabilities are very small,
+multiplying them together often yields to underflow.
+It is often better to use logarithms instead, so replace
+with
+37
+PP(w1...wN) =def
+N
+s N
+’
+i=1
+1
+P(wi|wi1,...,win+1)
+PP(w1...wN) =def exp✓
+ 1
+N
+N
+Â
+i=1
+logP(wi|wi1,...,win+1
+◆
+CS447: Natural Language Processing (J. Hockenmaier)
+Perplexity and LM order
+Bigram LMs have lower perplexity than unigram LMs
+Trigram LMs have lower perplexity than bigram LMs
+…
+Example from the textbook
+(WSJ corpus, trained on 38M tokens, tested on 1.5 M tokens,
+vocabulary: 20K word types)
+38
+Unigram Bigram Trigram
+Perplexity 962 170 109
+CS447: Natural Language Processing (J. Hockenmaier)
+Extrinsic (Task-Based)
+Evaluation of LMs:
+Word Error Rate
+39
+CS447: Natural Language Processing (J. Hockenmaier)
+Intrinsic vs. Extrinsic Evaluation
+Perplexity tells us which LM assigns a higher
+probability to unseen text
+This doesn’t necessarily tell us which LM is better for
+our task (i.e. is better at scoring candidate sentences)
+Task-based evaluation:
+-Train model A, plug it into your system for performing task T
+-Evaluate performance of system A on task T.
+-Train model B, plug it in, evaluate system B on same task T.
+-Compare scores of system A and system B on task T.
+40
+CS447: Natural Language Processing (J. Hockenmaier)
+Originally developed for speech recognition.
+How much does the predicted sequence of words
+differ from the actual sequence of words in the correct
+transcript?
+Insertions: “eat lunch” → “eat a lunch”
+Deletions: “see a movie” → “see movie”
+Substitutions: “drink ice tea”→ “drink nice tea”
+Word Error Rate (WER)
+WER = Insertions + Deletions + Substitutions
+Actual words in transcript
+41
+CS447: Natural Language Processing (J. Hockenmaier)
+But….
+… unseen test data will contain unseen words
+42
+CS447: Natural Language Processing (J. Hockenmaier)
+Getting back to
+Shakespeare…
+43
+CS447: Natural Language Processing (J. Hockenmaier)
+Generating Shakespeare
+44
+CS447: Natural Language Processing (J. Hockenmaier)
+Shakespeare as corpus
+The Shakespeare corpus consists of N=884,647 word
+tokens and a vocabulary of V=29,066 word types
+Shakespeare produced 300,000 bigram types
+out of V2= 844 million possible bigram types.
+99.96% of possible bigrams don’t occur in the corpus.
+Our relative frequency estimate assigns non-zero
+probability to only 0.04% of the possible bigrams
+That percentage is even lower for trigrams, 4-grams, etc.
+4-grams look like Shakespeare because they are Shakespeare!
+45
+CS447: Natural Language Processing (J. Hockenmaier)
+We estimated a model on 440K word tokens, but:
+Only 30,000 word types occur in the training data
+Any word that does not occur in the training data
+has zero probability!
+Only 0.04% of all possible bigrams (over 30K word
+types) occur in the training data
+Any bigram that does not occur in the training data
+has zero probability (even if we have seen both words in
+the bigram)
+MLE doesn’t capture unseen events
+46
+CS447: Natural Language Processing (J. Hockenmaier)
+Zipf’s law: the long tail
+ 1
+ 10
+ 100
+ 1000
+ 10000
+ 100000
+ 1 10 100 1000 10000 100000
+Frequency (log)
+Number of words (log)
+How many words occur N times?
+Word frequency (log-scale)
+In natural language:
+-A small number of events (e.g. words) occur with high frequency
+-A large number of events occur with very low frequency
+47
+A few words
+are very frequent
+English words, sorted by frequency (log-scale)
+w1 = the, w2 = to, …., w5346 = computer, ...
+Most words
+are very rare
+How many words occur once, twice, 100 times, 1000 times?
+the r-th most
+common word wr
+has P(wr) ∝ 1/r
+CS447: Natural Language Processing (J. Hockenmaier)
+So….
+… we can’t actually evaluate our MLE models on
+unseen test data (or system output)…
+… because both are likely to contain words/n-grams
+that these models assign zero probability to.
+We need language models that assign some
+probability mass to unseen words and n-grams.
+We will get back to this on Friday.
+48
+CS447: Natural Language Processing (J. Hockenmaier)
+To recap….
+49
+CS447: Natural Language Processing (J. Hockenmaier)
+Today’s key concepts
+N-gram language models
+Independence assumptions
+Relative frequency (maximum likelihood) estimation
+Evaluating language models: Perplexity, WER
+Zipf’s law
+Today’s reading:
+Jurafsky and Martin, Chapter 4, sections 1-4 (2008 edition)
+Chapter 3 (3rd Edition)
+Friday’s lecture: Handling unseen events!
+50
